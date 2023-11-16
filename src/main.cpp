@@ -8,17 +8,23 @@
 #define SWITCH 7
 #define BUZZER 8
 #define LED_RED 9
-#define SS_PIN 10 // SDA
-#define RST_PIN 4 // RST
+#define SS_PIN 10
+#define RST_PIN 4
 
-const int dTime = 500;
+const int DTIME = 500; // Delay for LED's
 
-// Keyboard-Emulation sendet US-Tastaturlayout!!!
+// Define your login credentials here, just for compiling the code 
+const char password1[] = "";
+const char password2[] = "";
+// [...]
 
-const char windows[] = "";
-const char keypass[] = "";
-const int chip[] = {230, 113, 248, 48}; // UID Chip
-const int card[] = {227, 18, 142, 0};   // UID Karte
+// !!! WARNING: IT IS ABSOLUTELY NOT RECOMMENT TO SAVE YOUR LOGIN CREDENTIALS IN SOURCE CODE !!!
+
+// Define the UID's from your RFID tags as an array of integer
+const int tag1[4] = {230, 113, 248, 48}; // chip
+const int tag2[4] = {227, 18, 142, 0};   // card
+// [...]
+
 int code[4];        
 int checkChip = 0;
 int checkCard = 0;
@@ -26,100 +32,104 @@ int checkCard = 0;
 bool rfidModeIsOn = false;
 bool supportModeIsOn = false;
 
-MFRC522 mfrc522(SS_PIN, RST_PIN); // Erzeuge Instanz von MFRC522
+MFRC522 mfrc522(SS_PIN, RST_PIN); // Creating an instance of MFRC522
 
-void accessGranted() {
+void grantAccess() {
   digitalWrite(LED_GREEN, HIGH);
   digitalWrite(BUZZER, HIGH);
-  delay(50);
+  delay(DTIME/10);
   digitalWrite(BUZZER, LOW);
-  delay(1000);
+  delay(2*DTIME);
   digitalWrite(LED_GREEN, LOW);
 }
 
-void accessDenied() {
+void denyAccess() {
   digitalWrite(LED_RED, HIGH);
-  digitalWrite(BUZZER, HIGH);
-  delay(50);
-  digitalWrite(BUZZER, LOW);
-  delay(50);
-  digitalWrite(BUZZER, HIGH);
-  delay(50);
-  digitalWrite(BUZZER, LOW);
-  delay(1000);
+  for(int i = 0; i < 3; i++) {
+    digitalWrite(BUZZER, HIGH);
+    delay(DTIME/10);
+    digitalWrite(BUZZER, LOW);
+    delay(DTIME/10);
+  }
+  delay(2*DTIME);
   digitalWrite(LED_RED, LOW);
 }
 
-void modeSupport() {
+void activateSupportMode() {
   rfidModeIsOn = false;
-  if(supportModeIsOn == false) {    
-    Serial.println("Wartungsmodus");
-    digitalWrite(LED_BLUE, HIGH);
-    delay(dTime);
-    digitalWrite(LED_BLUE, LOW);
-    delay(dTime);
-    digitalWrite(LED_BLUE, HIGH);
-    delay(dTime);
-    digitalWrite(LED_BLUE, LOW);
+  if(supportModeIsOn == false) {   
     supportModeIsOn = true;
+    digitalWrite(LED_BLUE, HIGH); 
+    Serial.println("Welcome to maintenance mode! Here you can discover the UID's of your RFID tags.");
   }
+
   Keyboard.end();
-  if(mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {  // wenn Karte in Reichweite u. Inhalt erfolgreich ausgelesen
+
+  if(mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {  // Checking presence of RFID tag and a readable UID
     for(byte i = 0; i < mfrc522.uid.size; i++) {
       Serial.print(mfrc522.uid.uidByte[i]);
       Serial.print(" ");
     }
     Serial.println();
-    mfrc522.PICC_HaltA();   // Ruhemodus für Karte, wird nur einmalig ausgelesen
+    mfrc522.PICC_HaltA();   // Go on halt to read the tag only one time
   }
 }
 
-void modeReadRFID() {
+void activateRfidMode() {
   supportModeIsOn = false;
+  digitalWrite(LED_BLUE, LOW);
   if(rfidModeIsOn == false) {
-    Serial.println("Login-Modus");
-    digitalWrite(LED_GREEN, HIGH);
-    delay(dTime);
-    digitalWrite(LED_GREEN, LOW);
-    delay(dTime);
-    digitalWrite(LED_GREEN, HIGH);
-    delay(dTime);
-    digitalWrite(LED_GREEN, LOW);
     rfidModeIsOn = true;
-  }  
-  if(mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {  // wenn Karte in Reichweite u. Inhalt erfolgreich ausgelesen
+    for(int i = 0; i < 2; i++) {
+      digitalWrite(LED_GREEN, HIGH);
+      delay(DTIME);
+      digitalWrite(LED_GREEN, LOW);
+      delay(DTIME);
+      digitalWrite(LED_BLUE, HIGH);
+      delay(DTIME);
+      digitalWrite(LED_BLUE, LOW);
+      delay(DTIME);
+      digitalWrite(LED_RED, HIGH);
+      delay(DTIME);
+      digitalWrite(LED_RED, LOW);
+      delay(DTIME);
+    }
+  }
+
+  if(mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {  // Checking presence of RFID tag and a readable UID
     for(byte i = 0; i < mfrc522.uid.size; i++) {
-      code[i] = mfrc522.uid.uidByte[i]; // Speichern der UID in Variable
-      if(code[i] == chip[i]) {
+      code[i] = mfrc522.uid.uidByte[i]; // Saving the UID
+      if(code[i] == tag1[i]) {
         checkChip++;
       }
-      else if(code[i] == card[i]) {
+      else if(code[i] == tag2[i]) {
         checkCard++;
       }
     }
     if(checkChip == mfrc522.uid.size) {
-      Keyboard.println(windows);
-      accessGranted();       
+      Keyboard.println(password1);
+      grantAccess();       
     }
     else if(checkCard == mfrc522.uid.size) {
-      Keyboard.println(keypass);
-      accessGranted();
+      Keyboard.println(password2);
+      grantAccess();
     }
     else {
-      accessDenied();
+      denyAccess();
     }
     checkChip = 0;
     checkCard = 0;
-    mfrc522.PICC_HaltA();   // Ruhemodus für Karte, wird nur einmalig ausgelesen
+    mfrc522.PICC_HaltA(); // Go on halt to read the tag only one time
   }
 }
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(9600); // Initialize interfaces
   SPI.begin();
   mfrc522.PCD_Init();
   Keyboard.begin();
-  pinMode(LED_BLUE, OUTPUT);
+  
+  pinMode(LED_BLUE, OUTPUT);  // Setup IO pins
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_RED, OUTPUT);
   pinMode(BUZZER, OUTPUT);
@@ -127,10 +137,9 @@ void setup() {
 }
 
 void loop() {
-  if(digitalRead(SWITCH) == HIGH) {
-    modeReadRFID();
-  }
-  else {
-    modeSupport();
+  if(digitalRead(SWITCH) == HIGH) { // Switch for activating the RFID mode
+    activateRfidMode();
+  } else {
+    activateSupportMode();
   }
 }
